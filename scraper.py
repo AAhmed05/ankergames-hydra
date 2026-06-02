@@ -155,14 +155,35 @@ def generate_download_url(
 
 
 def extract_dlproxy_url(session: requests.Session, ankergames_dl_url: str) -> str | None:
-    """Load the treasure-box page and extract the actual dlproxy download URL."""
+    """Load the treasure-box page and extract the actual download URL.
+
+    Converts node*.datanodes.to:PORT/d/CODE/FILE  →  datanodes.to/CODE/FILE
+    so Hydra's native Datanodes downloader can handle it properly.
+    Skips dlproxy.uk links (they expire quickly and can't be stored).
+    """
     resp = session.get(ankergames_dl_url, timeout=15)
     if resp.status_code != 200:
         return None
     matches = re.findall(r"downloadPage\('([^']+)'", resp.text)
-    if matches:
-        return unquote(matches[0])
-    return None
+    if not matches:
+        return None
+    url = unquote(matches[0])
+
+    # Convert node*.datanodes.to:PORT/d/CODE/FILE → datanodes.to/CODE/FILE
+    # This gives a permanent URL that Hydra's Datanodes downloader handles natively
+    node_match = re.match(
+        r"https://node\d+\.datanodes\.to(?::\d+)?/d/([^/?]+)/([^?]+)", url
+    )
+    if node_match:
+        code = node_match.group(1)
+        filename = node_match.group(2)
+        return f"https://datanodes.to/{code}/{filename}"
+
+    # dlproxy.uk URLs are temporary Cloudflare tunnels that expire — skip them
+    if "dlproxy.uk" in url:
+        return None
+
+    return url
 
 
 def load_progress() -> dict:
