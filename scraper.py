@@ -169,19 +169,15 @@ def extract_dlproxy_url(session: requests.Session, ankergames_dl_url: str) -> st
         return None
     url = unquote(matches[0])
 
-    # Convert node*.datanodes.to:PORT/d/CODE/FILE → datanodes.to/CODE/FILE
-    # This gives a permanent URL that Hydra's Datanodes downloader handles natively
-    node_match = re.match(
-        r"https://node\d+\.datanodes\.to(?::\d+)?/d/([^/?]+)/([^?]+)", url
-    )
-    if node_match:
-        code = node_match.group(1)
-        filename = node_match.group(2)
-        return f"https://datanodes.to/{code}/{filename}"
+    # node*.datanodes.to:PORT/d/CODE/FILE are permanent direct download URLs — keep as-is
+    if re.match(r"https://node\d+\.datanodes\.to", url):
+        return url
 
-    # dlproxy.uk URLs are temporary Cloudflare tunnels that expire — skip them
+    # dlproxy.uk: replace dead tunnels with tunnel1 (alive, same token works on any tunnel)
     if "dlproxy.uk" in url:
-        return None
+        import re as _re
+        url = _re.sub(r"tunnel\d+\.dlproxy\.uk", "tunnel1.dlproxy.uk", url)
+        return url
 
     return url
 
